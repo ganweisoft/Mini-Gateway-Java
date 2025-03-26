@@ -384,18 +384,8 @@ public class EquipItem implements ICanReset, Comparable
 	public final int compareTo(Object obj)
 	{
 		EquipItem eqp = obj instanceof EquipItem ? (EquipItem)obj : null;
-		if (getIEquipno() > eqp.getIEquipno())
-		{
-			return 1;
-		}
-		else if (getIEquipno() == eqp.getIEquipno())
-		{
-			return 0;
-		}
-		else
-		{
-			return -1;
-		}
+        assert eqp != null;
+        return Integer.compare(getIEquipno(), eqp.getIEquipno());
 	}
 
 	public EquipItem(int sta, int eqp, SerialPort p, EquipTableRow r)
@@ -422,9 +412,14 @@ public class EquipItem implements ICanReset, Comparable
 			{
 				dr = StationItem.getDbEqp().stream().filter(m -> m.getEquipNo() == eqp).findFirst().orElse(null);
 			}
+
+			if(dr == null){
+				return false;
+			}
+
 			try
 			{
-				equip_nm = dr.getEquipNm() != null ? dr.getEquipNm() : "";
+                equip_nm = (dr.getEquipNm() != null) ? dr.getEquipNm() : "";
 				equip_detail = dr.getEquipDetail() != null ? dr.getEquipDetail() : "";
 				iacc_cyc = dr.getAccCyc();
 				alarm_scheme = dr.getAlarmScheme();
@@ -432,11 +427,11 @@ public class EquipItem implements ICanReset, Comparable
 				equip_addr = dr.getEquipAddr() != null ? dr.getEquipAddr() : "";
 				related_pic = dr.getRelatedPic() != null ? dr.getRelatedPic() : "";
 				communication_drv = dr.getCommunicationDrv().strip();
-				alarmMsg = equip_nm + ":" + dr.getOutOfContact() != null ? dr.getOutOfContact() : "";
+				alarmMsg = equip_nm + ":" + (dr.getOutOfContact() != null ? dr.getOutOfContact() : "");
 				advice_Msg = dr.getProcAdvice() != null ? dr.getProcAdvice() : "";
 				attrib = dr.getAttrib();
-				setBSetCacheData(attrib == 1 ? true : false);
-				RestorealarmMsg = equip_nm + ":" + dr.getContacted() != null ? dr.getContacted() : "";
+				setBSetCacheData(attrib == 1);
+				RestorealarmMsg = equip_nm + ":" + (dr.getContacted() != null ? dr.getContacted() : "");
 
 				AlarmRiseCycle = dr.getAlarmRiseCycle() == null ? 0 : dr.getAlarmRiseCycle();
 				Reserve1 = dr.getReserve1() != null ? dr.getReserve1() : "";
@@ -451,7 +446,7 @@ public class EquipItem implements ICanReset, Comparable
 				sharpSystem.OutObject<String> tempOut_strEnable = new sharpSystem.OutObject<String>();
 				if (DataCenter.GetPropertyFromReserveWithEquipTableRow(tempOut_strEnable, "Reserve1", "GWDataCenter.dll#EnableEquip", dr))
 				{
-				strEnable = tempOut_strEnable.outArgValue;
+					strEnable = tempOut_strEnable.outArgValue;
 					if (strEnable.toLowerCase().equals("true"))
 					{
 						setEnable(true);
@@ -461,14 +456,14 @@ public class EquipItem implements ICanReset, Comparable
 						setEnable(false);
 					}
 				}
-			else
-			{
-				strEnable = tempOut_strEnable.outArgValue;
-			}
+				else
+				{
+					strEnable = tempOut_strEnable.outArgValue;
+				}
 
 				if (!sharpSystem.StringHelper.isNullOrEmpty(dr.getBackup()))
 				{
-					IsBackupEquip = dr.getBackup().toUpperCase().equals("TRUE") ? true : false;
+					IsBackupEquip = dr.getBackup().equalsIgnoreCase("TRUE");
 				}
 				else
 				{
@@ -523,15 +518,20 @@ public class EquipItem implements ICanReset, Comparable
 		icommunication = null;
 		try
 		{
-			var packageName = communication_drv.replace("dll", "");
 			String FullPathName = GetFullPathName4CommDrv(communication_drv);
+			if(StringHelper.isNullOrEmpty(FullPathName)){
+				return;
+			}
 
 			List<String> classNames = new ArrayList<>();
 
-			var jarFile = new JarFile(FullPathName);
-			URL jarUrl = new File(FullPathName).toURI().toURL();
-			Enumeration<JarEntry> entries = jarFile.entries();
-			while (entries.hasMoreElements()) {
+            URL jarUrl;
+            Enumeration<JarEntry> entries;
+            try (var jarFile = new JarFile(FullPathName)) {
+                jarUrl = new File(FullPathName).toURI().toURL();
+                entries = jarFile.entries();
+            }
+            while (entries.hasMoreElements()) {
 				JarEntry jarEntry = entries.nextElement();
 				String className = jarEntry.getName();
 				if(className.endsWith(".class")) {
@@ -545,14 +545,15 @@ public class EquipItem implements ICanReset, Comparable
 				if (!StringHelper.isNullOrEmpty(t) && t.contains("CEquip"))
 				{
 					// 2. 创建URLClassLoader，指定父类加载器
-					URLClassLoader classLoader = new URLClassLoader(
-							new URL[]{jarUrl},
-							EquipItem.class.getClassLoader() // 使用当前类加载器作为父类
-					);
+                    Class<?> targetClass;
+                    try (URLClassLoader classLoader = new URLClassLoader(
+                            new URL[]{jarUrl},
+                            EquipItem.class.getClassLoader() // 使用当前类加载器作为父类
+                    )) {
+                        targetClass = classLoader.loadClass(t);
+                    }
 
-					Class<?> targetClass = classLoader.loadClass(t);
-
-					// 4. 实例化类（假设有无参构造）
+                    // 4. 实例化类（假设有无参构造）
 					Constructor<?> constructor = targetClass.getDeclaredConstructor();
 					Object tempVar2 = constructor.newInstance();
 					icommunication = tempVar2 instanceof IEquip ? (IEquip)tempVar2 : null;
@@ -570,22 +571,11 @@ public class EquipItem implements ICanReset, Comparable
 			}
 
 		}
-		catch (RuntimeException e)
-		{
+		catch (RuntimeException | ClassNotFoundException | InstantiationException | IllegalAccessException | IOException | NoSuchMethodException | InvocationTargetException e) {
 			e.printStackTrace();
 			DataCenter.WriteLogFile(e.toString());
 			bCommunicationOk = false;
 			setState(EquipState.NoCommunication);
-		} catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-            throw new RuntimeException(e);
         }
     }
 
