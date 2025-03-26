@@ -2,6 +2,7 @@ package gwdatacenter;
 
 import gwdatacenter.database.*;
 import sharpSystem.EventArgs;
+import sharpSystem.StringHelper;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -541,7 +542,7 @@ public class EquipItem implements ICanReset, Comparable
 
 			for (String t : classNames)
 			{
-				if ("CEquip".equals(t))
+				if (!StringHelper.isNullOrEmpty(t) && t.contains("CEquip"))
 				{
 					// 2. 创建URLClassLoader，指定父类加载器
 					URLClassLoader classLoader = new URLClassLoader(
