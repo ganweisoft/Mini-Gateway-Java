@@ -1,6 +1,7 @@
 package gwdatacenter.mqservice;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -15,20 +16,32 @@ import gwdatacenter.*;
 import org.eclipse.paho.client.mqttv3.*;
 import sharpSystem.*;
 
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class MqttProvider
 {
 	private MqttProvider()
 	{
+		try {
+			// 通过Spring中的PropertiesLoaderUtils工具类进行获取
+			_properties = new Properties();
+			var inputStream = new BufferedInputStream(new FileInputStream("config.properties"));
+			_properties.load(inputStream);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
+
+	private java.util.Properties _properties;
 	public static final MqttProvider Instance = new MqttProvider();
 	private MqttClient _mqttClient;
 	private MqttConnectOptions _aspOption;
@@ -36,10 +49,33 @@ public class MqttProvider
 
 	public final void Init()
 	{
-		var username = System.getenv("MqUsername");
+        try {
+            System.out.println(new ObjectMapper().writeValueAsString(_properties));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        var username = System.getenv("MqUsername");
+		if(StringHelper.isNullOrEmpty(username)){
+			username = _properties.getProperty("MqUsername");
+		}
 		var password = System.getenv("MqPassword");
+		if(StringHelper.isNullOrEmpty(password)){
+			password = _properties.getProperty("MqPassword");
+
+			System.out.println("mqtt server password: " + password);
+		}
 		var gateWayId = System.getenv("InstanceId");
-		var mqServer = "tcp://" + System.getenv("MqServer");
+		if(StringHelper.isNullOrEmpty(gateWayId)){
+			gateWayId = _properties.getProperty("InstanceId");
+		}
+
+		var envMqServer = System.getenv("MqServer");
+		if(StringHelper.isNullOrEmpty(envMqServer)){
+			envMqServer = _properties.getProperty("MqServer");
+		}
+
+		var mqServer = "tcp://" + envMqServer;
 
 		var mqttConnectOptions = new MqttConnectOptions();
 		mqttConnectOptions.setServerURIs(new String[] { mqServer });
@@ -50,6 +86,9 @@ public class MqttProvider
 
 		String broker = mqServer + ":";
 		var mqSslEnable = System.getenv("MqSslEnable");
+		if(StringHelper.isNullOrEmpty(mqSslEnable)){
+			mqSslEnable = _properties.getProperty("MqSslEnable");
+		}
 		boolean mqSslEnableBool = Boolean.parseBoolean(mqSslEnable);
 
 		// TODO: support tls connect
@@ -63,6 +102,9 @@ public class MqttProvider
 		else
 		{
 			var mqPort = System.getenv("MqPort");
+			if (StringHelper.isNullOrEmpty(mqPort)){
+				mqPort = _properties.getProperty("MqPort");
+			}
 			broker = broker + mqPort;
 		}
 
@@ -145,7 +187,7 @@ public class MqttProvider
 				}
 
 				public void deliveryComplete(IMqttDeliveryToken token) {
-					System.out.println("deliveryComplete: " + token.isComplete());
+					System.out.println("deliveryComplete: " + token.getTopics());
 				}
 			});
 			_mqttClient.connect(_aspOption);

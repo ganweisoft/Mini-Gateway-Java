@@ -530,15 +530,16 @@ public class EquipItem implements ICanReset, Comparable
             try (var jarFile = new JarFile(FullPathName)) {
                 jarUrl = new File(FullPathName).toURI().toURL();
                 entries = jarFile.entries();
-            }
-            while (entries.hasMoreElements()) {
-				JarEntry jarEntry = entries.nextElement();
-				String className = jarEntry.getName();
-				if(className.endsWith(".class")) {
-					className = className.replace(".class", "").replace("/", ".");
-					classNames.add(className);
+
+				while (entries.hasMoreElements()) {
+					JarEntry jarEntry = entries.nextElement();
+					String className = jarEntry.getName();
+					if(className.endsWith(".class")) {
+						className = className.replace(".class", "").replace("/", ".");
+						classNames.add(className);
+					}
 				}
-			}
+            }
 
 			for (String t : classNames)
 			{

@@ -6,7 +6,7 @@
 
     <groupId>ganweisoft</groupId>
     <artifactId>gwminidatacenter</artifactId>
-    <version>1.0</version>
+    <version>1.1</version>
     <packaging>jar</packaging>
 
     <dependencies>
@@ -58,12 +58,12 @@
         <repository>
             <id>nexus_hosted</id>
             <name>Releases</name>
-            <url>http://139.9.43.67:8081/repository/maven-releases/</url>
+            <url>https://nuget.ganweicloud.com/maven/maven-releases/</url>
         </repository>
         <snapshotRepository>
             <id>nexus_snapshot_hosted</id>
             <name>Snapshot</name>
-            <url>http://139.9.43.67:8081/repository/maven-snapshots/</url>
+            <url>https://nuget.ganweicloud.com/maven/maven-snapshots/</url>
         </snapshotRepository>
     </distributionManagement>
 

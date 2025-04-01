@@ -158,20 +158,18 @@ public class SetItem
 		sharpSystem.OutObject<String> tempOut_strEnable = new sharpSystem.OutObject<String>();
 		if (m_SetNo != -1 && DataCenter.GetPropertyFromReserve(tempOut_strEnable, "setparm", "Reserve1", getEquipNo(), m_SetNo, "GWDataCenter.dll#EnableSetParm"))
 		{
-		strEnable = tempOut_strEnable.outArgValue;
-			if (strEnable.toLowerCase().equals("true"))
-			{
-				setEnable(true);
-			}
-			else if (strEnable.toLowerCase().equals("false"))
-			{
-				setEnable(false);
-			}
+			strEnable = tempOut_strEnable.outArgValue;
 		}
-	else
-	{
-		strEnable = tempOut_strEnable.outArgValue;
-	}
+
+		if (strEnable.equalsIgnoreCase("true"))
+		{
+			setEnable(true);
+		}
+		else if (strEnable.equalsIgnoreCase("false"))
+		{
+			setEnable(false);
+		}
+
 		GetSetCode();
 	}
 
