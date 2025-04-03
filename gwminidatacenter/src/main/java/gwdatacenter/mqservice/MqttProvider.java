@@ -34,7 +34,7 @@ public class MqttProvider
 		try {
 			// 通过Spring中的PropertiesLoaderUtils工具类进行获取
 			_properties = new Properties();
-			var inputStream = new BufferedInputStream(new FileInputStream("config.properties"));
+			var inputStream = new BufferedInputStream(new FileInputStream("config/config.properties"));
 			_properties.load(inputStream);
 		} catch (IOException e) {
 			e.printStackTrace();

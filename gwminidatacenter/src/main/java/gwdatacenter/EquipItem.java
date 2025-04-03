@@ -582,7 +582,7 @@ public class EquipItem implements ICanReset, Comparable
 
 	private String GetFullPathName4CommDrv(String moduleName)
 	{
-		moduleName = moduleName.replace(".dll", ".jar");
+		moduleName = moduleName.replace(".dll", "") + ".jar";
 
 		String fullPathName1 = Paths.get(General.GetApplicationRootPath(), "dll", moduleName).toString();
 

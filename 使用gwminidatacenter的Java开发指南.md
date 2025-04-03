@@ -1,12 +1,20 @@
 # 使用gwminidatacenter的Java开发指南
 
+## 前置条件
+
+1、JDK版本，使用微软的openJDK21.下载地址：https://learn.microsoft.com/zh-cn/java/openjdk/download
+
+
 ## maven设置
 
 **Maven是一个基于Java的项目管理工具（POM项目对象模型），它可以帮助开发人员自动化构建、测试和部署Java项目**
 
 在maven安装目录的setting.xml文件中增加如下配置。（需预先安装maven）
 
-**注：如果是使用的jetbrain idea作为开发工具，无需再单独安装maven。setting.xml位于idea的安装目录：C:\Program Files\JetBrains\IntelliJ IDEA\plugins\maven\lib\maven3\conf**
+**注：如果是使用的jetbrain idea作为开发工具，无需再单独安装maven。setting.xml位于idea的安装目录：IntelliJ IDEA\plugins\maven\lib\maven3\conf**
+
+**注意：需管理员权限才能修改当前文件**
+
 ```
 
 <!--在servers节点下-->
@@ -57,7 +65,7 @@
 
 <!--在activeProfiles节点下-->
   <activeProfiles>
-    <activeProfile>nexus</activeProfile>
+    <activeProfile>ganweisoft</activeProfile>
   </activeProfiles>
 
 ```
@@ -103,21 +111,18 @@
 4、随机数代码示例
 
 ```
-package Demo;
+package ganweisoft;
 
-import gwdatacenter.CEquipBase;
-import gwdatacenter.CommunicationState;
-import gwdatacenter.DataCenter;
-import gwdatacenter.database.YcpTableRow;
-import gwdatacenter.database.YxpTableRow;
+import gwdatacenter.*;
+import gwdatacenter.database.*;
 
 import java.util.Random;
 
+
 public class CEquip extends CEquipBase
 {
-    public CEquip()
-    {
-        super();
+    public CEquip() {
+        // 初始化代码（如果有需要）
     }
 
     /**
@@ -135,10 +140,10 @@ public class CEquip extends CEquipBase
             return CommunicationState.setreturn;
         }
 
-        var commState = super.GetData(pEquip);
-        if (commState != CommunicationState.ok)
+        CommunicationState commState = super.GetData(pEquip);
+        if (!commState.equals(CommunicationState.ok))
         {
-            return commState;
+            return CommunicationState.ok;
         }
 
         if (!pEquip.GetEvent())
@@ -151,7 +156,7 @@ public class CEquip extends CEquipBase
     @Override
     public boolean GetYC(YcpTableRow r)
     {
-        super.SetYCData(r, new Random().nextDouble(r.getValMin(), r.getValMax()));
+        super.SetYCData(r, new Random().nextDouble());
         return true;
     }
 
@@ -202,48 +207,53 @@ public class CEquip extends CEquipBase
         }
     }
 }
-
 ```
 
 5、编译，打包  
+
+右击选择 运行Maven构建
+
 ![alt text](./media/image-4.png)
 
+**可选：已安装Maven时运行下述命令行语句**
+
 ```
-mvn clean
-mvn compile
-mvn jar
+mvn clean compile jar:jar
 ```
 
-## 运行
+## 运行java 程序
+
+将打包输出的jar文件替换到下列目录下的dll目录里面
 
 1、目录层级
 
 ```
-├─bin
-│  │  config.properties
-│  │  gwminidatacenter-1.0-SNAPSHOT.jar
-│  │
-│  └─lib
-│          comm-1.0.0.jar
-│          jackson-annotations-2.13.5.jar
-│          jackson-core-2.13.5.jar
-│          jackson-databind-2.13.5.jar
-│          jackson-dataformat-xml-2.13.5.jar
-│          jackson-datatype-jdk8-2.13.5.jar
-│          jackson-datatype-jsr310-2.13.5.jar
-│          org.eclipse.paho.client.mqttv3-1.2.5.jar
-│          stax2-api-4.2.1.jar
-│          woodstox-core-6.4.0.jar
-│
-├─dll
-│      BCDataSimu.STD.jar
-│
-└─log
++---bin
+|   |   gwminidatacenter-1.0.jar
+|   \---lib
+|           comm-1.0.0.jar
+|           jackson-annotations-2.13.5.jar
+|           jackson-core-2.13.5.jar
+|           jackson-databind-2.13.5.jar
+|           jackson-dataformat-xml-2.13.5.jar
+|           jackson-datatype-jdk8-2.13.5.jar
+|           jackson-datatype-jsr310-2.13.5.jar
+|           org.eclipse.paho.client.mqttv3-1.2.5.jar
+|           stax2-api-4.2.1.jar
+|           woodstox-core-6.4.0.jar
+|
++---dll
+|       BCDataSimu.STD.jar
+|
+\---log
         XLog.txt
 
 ```
 
-2、运行命令
+2、在bin目录下执行命令（附上截图）
+
+![alt text](./media/image-7.png)
+
 ```
 java -jar gwminidatacenter-1.0.jar
 ```
