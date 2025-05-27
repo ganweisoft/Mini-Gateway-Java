@@ -6,7 +6,7 @@
 
     <groupId>ganweisoft</groupId>
     <artifactId>gwminidatacenter</artifactId>
-    <version>1.2</version>
+    <version>1.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <dependencies>

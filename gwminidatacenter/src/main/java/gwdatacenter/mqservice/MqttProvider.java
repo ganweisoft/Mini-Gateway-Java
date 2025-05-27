@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -34,8 +35,10 @@ public class MqttProvider
 		try {
 			// 通过Spring中的PropertiesLoaderUtils工具类进行获取
 			_properties = new Properties();
-			var inputStream = new BufferedInputStream(new FileInputStream("config/config.properties"));
-			_properties.load(inputStream);
+			if(new File("config/config.properties").exists()){
+				var inputStream = new BufferedInputStream(new FileInputStream("config/config.properties"));
+				_properties.load(inputStream);
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -55,22 +58,22 @@ public class MqttProvider
             throw new RuntimeException(e);
         }
 
-        var username = System.getenv("MqUsername");
+        var username = System.getenv("IoTCenterMqttName");
 		if(StringHelper.isNullOrEmpty(username)){
 			username = _properties.getProperty("MqUsername");
 		}
-		var password = System.getenv("MqPassword");
+		var password = System.getenv("IoTCenterMqttKey");
 		if(StringHelper.isNullOrEmpty(password)){
 			password = _properties.getProperty("MqPassword");
 
 			System.out.println("mqtt server password: " + password);
 		}
-		var gateWayId = System.getenv("InstanceId");
+		var gateWayId = System.getenv("IoTCenterGatewayInstanceId");
 		if(StringHelper.isNullOrEmpty(gateWayId)){
 			gateWayId = _properties.getProperty("InstanceId");
 		}
 
-		var envMqServer = System.getenv("MqServer");
+		var envMqServer = System.getenv("IoTCenterMqttServerIp");
 		if(StringHelper.isNullOrEmpty(envMqServer)){
 			envMqServer = _properties.getProperty("MqServer");
 		}
@@ -87,7 +90,7 @@ public class MqttProvider
 		String broker = mqServer + ":";
 		var mqSslEnable = System.getenv("MqSslEnable");
 		if(StringHelper.isNullOrEmpty(mqSslEnable)){
-			mqSslEnable = _properties.getProperty("MqSslEnable");
+			mqSslEnable = _properties.getProperty("MqSslEnable", "False");
 		}
 		boolean mqSslEnableBool = Boolean.parseBoolean(mqSslEnable);
 
@@ -101,7 +104,7 @@ public class MqttProvider
 		}
 		else
 		{
-			var mqPort = System.getenv("MqPort");
+			var mqPort = System.getenv("IoTCenterMqttServerPort");
 			if (StringHelper.isNullOrEmpty(mqPort)){
 				mqPort = _properties.getProperty("MqPort");
 			}
@@ -187,7 +190,7 @@ public class MqttProvider
 				}
 
 				public void deliveryComplete(IMqttDeliveryToken token) {
-					System.out.println("deliveryComplete: " + token.getTopics());
+					System.out.println("deliveryComplete: " + Arrays.toString(token.getTopics()));
 				}
 			});
 			_mqttClient.connect(_aspOption);
