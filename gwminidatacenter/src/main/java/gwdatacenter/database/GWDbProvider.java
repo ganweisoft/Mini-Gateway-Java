@@ -15,8 +15,8 @@ public class GWDbProvider
 	public static GWDbProvider Instance = new GWDbProvider();
 	public final void Init() throws InterruptedException {
 		//TODO: 从MQTT服务器获取json数据并做处理
-		MqttProvider.Instance.Init();
 		MqttProvider.Instance.EquipInited.addListener((sender, args) -> this.setInitCompleted(true));
+		MqttProvider.Instance.Init();
 		while (!this.getInitCompleted())
 		{
 			Thread.sleep(500);

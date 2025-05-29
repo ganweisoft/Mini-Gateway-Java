@@ -5,6 +5,15 @@ import java.util.*;
 
 public class MqRtValueMessage
 {
+	private int DataType;
+	public final int getDataType()
+	{
+		return DataType;
+	}
+	public final void setDataType(int value)
+	{
+		DataType = value;
+	}
 	private String Time;
 	public final String getTime()
 	{

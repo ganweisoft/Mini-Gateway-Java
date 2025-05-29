@@ -1,7 +1,6 @@
 package gwdatacenter.mqservice;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -13,7 +12,15 @@ import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalTimeSerializer;
 import gwdatacenter.*;
-import org.eclipse.paho.client.mqttv3.*;
+import io.dapr.client.*;
+import io.dapr.client.domain.CloudEvent;
+import io.dapr.client.domain.HttpExtension;
+import io.dapr.client.domain.InvokeMethodRequest;
+import io.dapr.exceptions.DaprErrorDetails;
+import io.dapr.exceptions.DaprException;
+import io.dapr.serializer.DefaultObjectSerializer;
+import io.dapr.utils.TypeRef;
+import reactor.core.publisher.Mono;
 import sharpSystem.*;
 
 import java.io.BufferedInputStream;
@@ -25,11 +32,17 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Properties;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class MqttProvider
 {
+	private String EVT_TOPIC_NAME = "event";
+	private String TOPIC_NAME = "report";
+	private String PUBSUB_NAME = "open_datacenter_pubsub";
+	private String CMD_TOPIC_NAME = "set";
+
 	private MqttProvider()
 	{
 		try {
@@ -44,11 +57,17 @@ public class MqttProvider
 		}
 	}
 
+	private Thread _subThread;
+	private String _gateWayId = null;
 	private java.util.Properties _properties;
 	public static final MqttProvider Instance = new MqttProvider();
-	private MqttClient _mqttClient;
-	private MqttConnectOptions _aspOption;
+	private DaprClient _daprClient;
 	public final CopyOnWriteArrayList<Equip> EquipTableRows = new CopyOnWriteArrayList<>();
+
+	/**
+	 * Json serializer/deserializer.
+	 */
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 	public final void Init()
 	{
@@ -58,175 +77,165 @@ public class MqttProvider
             throw new RuntimeException(e);
         }
 
-        var username = System.getenv("IoTCenterMqttName");
+		_gateWayId = System.getenv("IoTCenterGatewayInstanceId");
+		if(StringHelper.isNullOrEmpty(_gateWayId)){
+			_gateWayId = _properties.getProperty("InstanceId");
+		}
+
+		var mqServer = System.getenv("IoTCenterMqttServerIp");
+		if(StringHelper.isNullOrEmpty(mqServer)){
+			mqServer = _properties.getProperty("MqServer");
+		}
+
+		var builder = new DaprClientBuilder();
+		if(!StringHelper.isNullOrEmpty(mqServer)){
+			//builder.UseHttpEndpoint(mqServer);
+			//builder.withHttpEndpoint("http://localhost:3501"); // Custom port
+		}
+
+		var username = System.getenv("IoTCenterMqttName");
 		if(StringHelper.isNullOrEmpty(username)){
 			username = _properties.getProperty("MqUsername");
 		}
 		var password = System.getenv("IoTCenterMqttKey");
 		if(StringHelper.isNullOrEmpty(password)){
 			password = _properties.getProperty("MqPassword");
-
-			System.out.println("mqtt server password: " + password);
 		}
-		var gateWayId = System.getenv("IoTCenterGatewayInstanceId");
-		if(StringHelper.isNullOrEmpty(gateWayId)){
-			gateWayId = _properties.getProperty("InstanceId");
+		if(!StringHelper.isNullOrEmpty(username) && !StringHelper.isNullOrEmpty(password)){
+
+			//builder.useDaprApiToken(DataCenter.EncodeBase64("Basic " + username + ":" + password));
 		}
 
-		var envMqServer = System.getenv("IoTCenterMqttServerIp");
-		if(StringHelper.isNullOrEmpty(envMqServer)){
-			envMqServer = _properties.getProperty("MqServer");
-		}
+		_daprClient = new DaprClientBuilder().build();
+		this.GetEquipsAsync();
 
-		var mqServer = "tcp://" + envMqServer;
+		// 使用流式订阅设备命令消息
+		_subThread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				// 是一个阻塞函数，需放入线程中执行
+				try (var client = new DaprClientBuilder().buildPreviewClient()) {
+					var subscription = client.subscribeToEvents(
+							PUBSUB_NAME,
+							CMD_TOPIC_NAME,
+							new SubscriptionListener<>() {
 
-		var mqttConnectOptions = new MqttConnectOptions();
-		mqttConnectOptions.setServerURIs(new String[] { mqServer });
-		mqttConnectOptions.setUserName(username);
-		mqttConnectOptions.setPassword(password.toCharArray());
-		mqttConnectOptions.setAutomaticReconnect(true);
-		mqttConnectOptions.setKeepAliveInterval(10);
-
-		String broker = mqServer + ":";
-		var mqSslEnable = System.getenv("MqSslEnable");
-		if(StringHelper.isNullOrEmpty(mqSslEnable)){
-			mqSslEnable = _properties.getProperty("MqSslEnable", "False");
-		}
-		boolean mqSslEnableBool = Boolean.parseBoolean(mqSslEnable);
-
-		// TODO: support tls connect
-		if (mqSslEnableBool)
-		{
-			var mqSslPort = System.getenv("MqSslPort");
-			var mqSslCert = System.getenv("MqSslCert");
-
-			broker = broker + mqSslPort;
-		}
-		else
-		{
-			var mqPort = System.getenv("IoTCenterMqttServerPort");
-			if (StringHelper.isNullOrEmpty(mqPort)){
-				mqPort = _properties.getProperty("MqPort");
-			}
-			broker = broker + mqPort;
-		}
-
-		_aspOption = mqttConnectOptions;
-        try {
-            _mqttClient = new MqttClient(broker, gateWayId);
-			_mqttClient.setCallback(new MqttCallback() {
-				public void messageArrived(String topic, MqttMessage message) throws RuntimeException {
-					DataCenter.WriteLogFile("topic: " + topic);
-					var payload = new String(message.getPayload());
-					DataCenter.WriteLogFile("received:" + payload);
-
-					ObjectMapper mapper = new ObjectMapper();
-					mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-					mapper.disable(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE);
-					mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-					JavaTimeModule javaTimeModule = new JavaTimeModule();
-
-					javaTimeModule.addSerializer(LocalDateTime.class,new LocalDateTimeSerializer(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-					javaTimeModule.addSerializer(LocalDate.class,new LocalDateSerializer(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
-					javaTimeModule.addSerializer(LocalTime.class,new LocalTimeSerializer(DateTimeFormatter.ofPattern("HH:mm:ss")));
-
-					javaTimeModule.addDeserializer(LocalDateTime.class,new LocalDateTimeDeserializer(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-					javaTimeModule.addDeserializer(LocalDate.class,new LocalDateDeserializer(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
-					javaTimeModule.addDeserializer(LocalTime.class,new LocalTimeDeserializer(DateTimeFormatter.ofPattern("HH:mm:ss")));
-					mapper.registerModule(javaTimeModule);
-
-					var topicCompare = org.eclipse.paho.client.mqttv3.MqttTopic.isMatched(topic, String.format("$sys/iotcenter/%1$s/java/down", _mqttClient.getClientId()));
-					if (topicCompare)
-					{
-                        try {
-							MqMessage desMsgObject = mapper.readValue(payload, MqMessage.class);
-							if (desMsgObject.getFlowType() == 1 && !desMsgObject.getEquips().isEmpty())
-							{
-								for (int i = 0; i < desMsgObject.getEquips().size(); i++)
-								{
-									EquipTableRows.add(i, desMsgObject.getEquips().get(i));
-								}
-
-								if (EquipInited != null)
-								{
-									for (EventHandler<EventArgs> listener : EquipInited.listeners())
+								@Override
+								public Mono<Status> onEvent(CloudEvent<MqCmdMessage> event) {
+									var desMsgObject = event.getData();
+									var equipItem = StationItem.GetEquipItemFromEquipNo(desMsgObject.getEquipNo());
+									if (equipItem != null)
 									{
-										listener.invoke(this, EventArgs.Empty);
+										equipItem.AddSetItem(new SetItem(desMsgObject.getEquipNo(),
+												desMsgObject.getMainInstruct(),
+												desMsgObject.getMinorInstruct(),
+												desMsgObject.getValue()));
 									}
+
+									return Mono.just(Status.SUCCESS);
 								}
-							}
-                        } catch (JsonProcessingException e) {
-							throw new RuntimeException(String.valueOf(e));
-						} catch (Exception e) {
-							throw new RuntimeException(String.valueOf(e));
-                        }
-                    }
 
-					topicCompare = org.eclipse.paho.client.mqttv3.MqttTopic.isMatched(topic, String.format("$sys/iotcenter/%1$s/command/down", _mqttClient.getClientId()));
-					if (topicCompare)
-					{
-                        try {
-							MqCmdMessage desMsgObject = mapper.readValue(payload, MqCmdMessage.class);
-							var equipItem = StationItem.GetEquipItemFromEquipNo(desMsgObject.getEquipNo());
-							if (equipItem != null)
-							{
-								equipItem.AddSetItem(new SetItem(desMsgObject.getEquipNo(),
-										desMsgObject.getMainInstruct(),
-										desMsgObject.getMinorInstruct(),
-										desMsgObject.getValue()));
-							}
-                        } catch (JsonProcessingException e) {
-							throw new RuntimeException(String.valueOf(e));
-						} catch (Exception e) {
-							throw new RuntimeException(String.valueOf(e));
-						}
-					}
+								@Override
+								public void onError(RuntimeException exception) {
+									DataCenter.WriteLogFile("Subscriber got exception: " + exception.getMessage());
+								}
+							},
+							TypeRef.get(MqCmdMessage.class));
 
+					subscription.awaitTermination();
+				} catch (Exception exception) {
+					DataCenter.WriteLogFile("Subscriber Error message: " + exception.getMessage());
 				}
-
-				public void connectionLost(Throwable cause) {
-					System.out.println("connectionLost: " + cause.getMessage());
-					cause.printStackTrace();
-				}
-
-				public void deliveryComplete(IMqttDeliveryToken token) {
-					System.out.println("deliveryComplete: " + Arrays.toString(token.getTopics()));
-				}
-			});
-			_mqttClient.connect(_aspOption);
-			_mqttClient.subscribe(MqttTopic.TopicIotsysCommandDown);
-			_mqttClient.subscribe(MqttTopic.getTopicIotsysEquipDown());
-        } catch (MqttException e) {
-            throw new RuntimeException(e);
-        }
+			}
+		});
+		_subThread.start();
     }
 
+	private final void GetEquipsAsync() {
+        try {
+			var cateObj = new HashMap<String, String>();
+			cateObj.put("Categary", "JAVA");
+			InvokeMethodRequest request = new InvokeMethodRequest(_gateWayId, "equip")
+					.setBody(cateObj)
+					.setHttpExtension(HttpExtension.POST);
+			var responses = _daprClient.invokeMethod(request, TypeRef.get(MqMessage[].class)).block();
+			if (responses == null)
+			{
+				throw new NullPointerException();
+			}
+
+			MqMessage desMsgObject = Arrays.stream(responses).findFirst().orElse(null);
+			if (desMsgObject != null && desMsgObject.FlowType == 1 && !desMsgObject.Equips.isEmpty())
+			{
+				for (int i = 0; i < desMsgObject.getEquips().size(); i++)
+				{
+					EquipTableRows.add(i, desMsgObject.getEquips().get(i));
+				}
+
+				if (EquipInited != null)
+				{
+					for (EventHandler<EventArgs> listener : EquipInited.listeners())
+					{
+						listener.invoke(this, EventArgs.Empty);
+					}
+				}
+			}
+        } catch (DaprException exception) {
+			System.out.println("Error code: " + exception.getErrorCode());
+			System.out.println("Error message: " + exception.getMessage());
+			System.out.println("Reason: " + exception.getErrorDetails().get(
+					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
+					"reason",
+					TypeRef.STRING));
+			System.out.println("Error payload: " + new String(exception.getPayload()));
+		}
+    }
 
 	public final void PublishYcRtValueAsync(MqRtValueMessage msg) {
-		var topic = String.format(MqttTopic.TOPIC_IOTSYS_MINIDCYC_DEVICE_DATA_REPORT, _mqttClient.getClientId());
 
 		try {
 			ObjectMapper mapper = new ObjectMapper();
 			String json = mapper.writeValueAsString(msg);
-			var appMsg = new MqttMessage(json.getBytes());
-			_mqttClient.publish(topic, appMsg);
 
-		} catch (JsonProcessingException | MqttException e) {
+			msg.setDataType(1);
+			_daprClient.publishEvent(
+					PUBSUB_NAME,
+					TOPIC_NAME,
+					msg).block();
+
+		} catch (DaprException exception) {
+			System.out.println("Error code: " + exception.getErrorCode());
+			System.out.println("Error message: " + exception.getMessage());
+			System.out.println("Reason: " + exception.getErrorDetails().get(
+					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
+					"reason",
+					TypeRef.STRING));
+			System.out.println("Error payload: " + new String(exception.getPayload()));
+		} catch (JsonProcessingException e) {
 			DataCenter.WriteLogFile(String.format("PublishYcRtValueAsync Exception: %1$s", e));
 		}
 	}
 
 	public final void PublishYxRtValueAsync(MqRtValueMessage msg)
 	{
-		var topic = String.format(MqttTopic.TOPIC_IOTSYS_MINIDCYX_DEVICE_DATA_REPORT, _mqttClient.getClientId());
-
 		try {
 			ObjectMapper mapper = new ObjectMapper();
 			String json = mapper.writeValueAsString(msg);
-			var appMsg = new MqttMessage(json.getBytes());
-			_mqttClient.publish(topic, appMsg);
 
-		} catch (JsonProcessingException | MqttException e) {
+			msg.setDataType(2);
+			_daprClient.publishEvent(
+					PUBSUB_NAME,
+					TOPIC_NAME,
+					msg).block();
+		}catch (DaprException exception) {
+			System.out.println("Error code: " + exception.getErrorCode());
+			System.out.println("Error message: " + exception.getMessage());
+			System.out.println("Reason: " + exception.getErrorDetails().get(
+					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
+					"reason",
+					TypeRef.STRING));
+			System.out.println("Error payload: " + new String(exception.getPayload()));
+		} catch (JsonProcessingException e) {
 			DataCenter.WriteLogFile(String.format("PublishYxRtValueAsync Exception: %1$s", e));
 		}
 	}
@@ -234,31 +243,47 @@ public class MqttProvider
 
 	public final void PublishRtStateAsync(MqRtStateMessage msg)
 	{
-		var topic = String.format(MqttTopic.TOPIC_IOTSYS_DEVICE_STATE_REPORT, _mqttClient.getClientId());
-
 		try {
 			ObjectMapper mapper = new ObjectMapper();
 			String json = mapper.writeValueAsString(msg);
-			var appMsg = new MqttMessage(json.getBytes());
-			_mqttClient.publish(topic, appMsg);
 
-		} catch (JsonProcessingException | MqttException e) {
+			_daprClient.publishEvent(
+					PUBSUB_NAME,
+					TOPIC_NAME,
+					msg).block();
+		} catch (DaprException exception) {
+			System.out.println("Error code: " + exception.getErrorCode());
+			System.out.println("Error message: " + exception.getMessage());
+			System.out.println("Reason: " + exception.getErrorDetails().get(
+					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
+					"reason",
+					TypeRef.STRING));
+			System.out.println("Error payload: " + new String(exception.getPayload()));
+		}catch (JsonProcessingException e) {
 			DataCenter.WriteLogFile(String.format("PublishRtStateAsync Exception: %1$s", e));
 		}
 	}
 
 	public final void PublishEvtValueAsync(MqEvtMessage msg)
 	{
-		var topic = String.format(MqttTopic.TOPIC_IOTSYS_MINIDCYX_DEVICE_EVT_REPORT, _mqttClient.getClientId());
-
 		try {
 			ObjectMapper mapper = new ObjectMapper();
 			String json = mapper.writeValueAsString(msg);
-			var appMsg = new MqttMessage(json.getBytes());
-			_mqttClient.publish(topic, appMsg);
 
-		} catch (JsonProcessingException | MqttException e) {
-			DataCenter.WriteLogFile(String.format("PublishEvtValueAsync Exception: %1$s", e));
+			_daprClient.publishEvent(
+					PUBSUB_NAME,
+					TOPIC_NAME,
+					msg).block();
+		} catch (DaprException exception) {
+			System.out.println("Error code: " + exception.getErrorCode());
+			System.out.println("Error message: " + exception.getMessage());
+			System.out.println("Reason: " + exception.getErrorDetails().get(
+					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
+					"reason",
+					TypeRef.STRING));
+			System.out.println("Error payload: " + new String(exception.getPayload()));
+		}catch (JsonProcessingException e) {
+			DataCenter.WriteLogFile(String.format("PublishRtStateAsync Exception: %1$s", e));
 		}
 	}
 
