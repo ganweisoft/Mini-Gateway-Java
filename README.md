@@ -1,39 +1,30 @@
-# gwminidatacenter.java
+## GWMiniDataCenter-Java
 
-#### 介绍
-{**以下是 Gitee 平台说明，您可以替换此简介**
-Gitee 是 OSCHINA 推出的基于 Git 的代码托管平台（同时支持 SVN）。专为开发者提供稳定、高效、安全的云端软件开发协作平台
-无论是个人、团队、或是企业，都能够用 Gitee 实现代码托管、项目管理、协作开发。企业项目请看 [https://gitee.com/enterprises](https://gitee.com/enterprises)}
+该项目是分离自GateWay(下称GateWay)(https://github.com/ganweisoft/Gateway)的一个可扩展的, 开发自.NET框架的微型网关.
+作用是适配其他主流的开发语言, 使得开发者可以使用自己熟悉的开发语言进行开发. 
+消息通道使用的是dapr(https://docs.dapr.io/).
 
-#### 软件架构
-软件架构说明
+### 消息路径
 
+使用dapr的消息通道, 传输设备的实时值到GateWay主网关. 架构图:   
+![img.png](img.png)
 
-#### 安装教程
+1. GateWay主网关作为subscriber. 
+2. 消息队列中间件可选MQTT, kafka, redis等.
+3. Java/Python/.NET版本的Mini-GateWay作为publisher.
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+**Python版Mini-GateWay仓库: (https://github.com/ganweisoft/Mini-Gateway-Python.git)**  
+**.NET版Mini-GateWay仓库: (https://github.com/ganweisoft/Mini-Gateway-CSharp.git)**
 
-#### 使用说明
+### 内部扩展
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
-
-#### 参与贡献
-
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
-
-
-#### 特技
-
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+1. 同GateWay一样, 可进行内部扩展. 只需继承CEquipBase, 将类名命名为CEquip.
+生成的文件放入GWHost1的上层目录的dll目录下.
+GWMiniDataCenter启动是即可自扫描加载.
+```Java
+public class Main {
+    public static void main(String[] args) {
+        gwdatacenter.DataCenter.Start();
+    }
+}
+```
