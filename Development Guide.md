@@ -1,5 +1,3 @@
-# Development Guide
-
 ## 前置条件
 
 1、JDK版本，使用微软的openJDK21.下载地址：https://learn.microsoft.com/zh-cn/java/openjdk/download
