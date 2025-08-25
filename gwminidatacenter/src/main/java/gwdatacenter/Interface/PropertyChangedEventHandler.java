@@ -1,8 +1,6 @@
-package gwdatacenter;
+package gwdatacenter.Interface;
 
-import java.util.*;
-import java.io.*;
-import java.nio.file.*;
+import gwdatacenter.args.PropertyChangedEventArgs;
 
 @FunctionalInterface
 public interface PropertyChangedEventHandler

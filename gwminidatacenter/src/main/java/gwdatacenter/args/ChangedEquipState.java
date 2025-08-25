@@ -1,9 +1,4 @@
-package gwdatacenter;
-
-import gwdatacenter.database.*;
-import gwdatacenter.mqservice.*;
-import java.util.*;
-import java.time.*;
+package gwdatacenter.args;
 
 public enum ChangedEquipState
 {

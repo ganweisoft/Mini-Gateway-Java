@@ -1,7 +1,9 @@
 package gwdatacenter;
 
+import gwdatacenter.args.ChangedEquip;
+import gwdatacenter.args.ChangedEquipState;
+import gwdatacenter.args.SafetyLevel;
 import gwdatacenter.database.*;
-import gwdatacenter.mqservice.Equip;
 import sharpSystem.EventArgs;
 import sharpSystem.EventHandler;
 

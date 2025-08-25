@@ -1,4 +1,4 @@
-package gwdatacenter;
+package gwdatacenter.args;
 
 public class NoSetItemPermissionEventArgs extends sharpSystem.EventArgs
 {

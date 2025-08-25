@@ -1,4 +1,7 @@
-package gwdatacenter;
+package gwdatacenter.communication.netPort;
+
+import gwdatacenter.EquipItem;
+import gwdatacenter.Interface.ICommunication;
 
 import java.io.*;
 import java.net.Socket;

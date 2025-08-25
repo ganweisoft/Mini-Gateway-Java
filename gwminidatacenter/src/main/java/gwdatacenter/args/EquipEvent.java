@@ -1,6 +1,5 @@
-package gwdatacenter;
+package gwdatacenter.args;
 
-import java.util.*;
 import java.time.*;
 
 public class EquipEvent

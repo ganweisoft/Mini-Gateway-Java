@@ -1,16 +1,7 @@
 package gwdatacenter.mqservice;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateDeserializer;
-import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
-import com.fasterxml.jackson.datatype.jsr310.deser.LocalTimeDeserializer;
-import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
-import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
-import com.fasterxml.jackson.datatype.jsr310.ser.LocalTimeSerializer;
 import gwdatacenter.*;
 import io.dapr.client.*;
 import io.dapr.client.domain.CloudEvent;
@@ -18,7 +9,6 @@ import io.dapr.client.domain.HttpExtension;
 import io.dapr.client.domain.InvokeMethodRequest;
 import io.dapr.exceptions.DaprErrorDetails;
 import io.dapr.exceptions.DaprException;
-import io.dapr.serializer.DefaultObjectSerializer;
 import io.dapr.utils.TypeRef;
 import reactor.core.publisher.Mono;
 import sharpSystem.*;
@@ -27,10 +17,6 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Properties;
@@ -61,7 +47,8 @@ public class MqttProvider
 	private String _gateWayId = null;
 	private java.util.Properties _properties;
 	public static final MqttProvider Instance = new MqttProvider();
-	private DaprClient _daprClient;
+	private DaprClientBuilder _daprClientBuilder;
+	private DaprClient _grpcDaprClient;
 	public final CopyOnWriteArrayList<Equip> EquipTableRows = new CopyOnWriteArrayList<>();
 
 	/**
@@ -87,26 +74,30 @@ public class MqttProvider
 			mqServer = _properties.getProperty("MqServer");
 		}
 
-		var builder = new DaprClientBuilder();
+		var daprBuilder = new DaprClientBuilder();
 		if(!StringHelper.isNullOrEmpty(mqServer)){
-			//builder.UseHttpEndpoint(mqServer);
-			//builder.withHttpEndpoint("http://localhost:3501"); // Custom port
+			daprBuilder.withPropertyOverride(io.dapr.config.Properties.HTTP_ENDPOINT, mqServer);
 		}
 
-		var username = System.getenv("IoTCenterMqttName");
-		if(StringHelper.isNullOrEmpty(username)){
-			username = _properties.getProperty("MqUsername");
+		var mqGrpcServer = System.getenv("IoTCenterMqttGrpcServerIp");
+		if(StringHelper.isNullOrEmpty(mqGrpcServer)){
+			mqGrpcServer = _properties.getProperty("MqGRPCServer");
 		}
+
+		if(!StringHelper.isNullOrEmpty(mqGrpcServer)){
+			daprBuilder.withPropertyOverride(io.dapr.config.Properties.GRPC_ENDPOINT, mqGrpcServer);
+		}
+
 		var password = System.getenv("IoTCenterMqttKey");
 		if(StringHelper.isNullOrEmpty(password)){
 			password = _properties.getProperty("MqPassword");
 		}
-		if(!StringHelper.isNullOrEmpty(username) && !StringHelper.isNullOrEmpty(password)){
-
-			//builder.useDaprApiToken(DataCenter.EncodeBase64("Basic " + username + ":" + password));
+		if(!StringHelper.isNullOrEmpty(password)){
+			daprBuilder.withPropertyOverride(io.dapr.config.Properties.API_TOKEN, password);
 		}
 
-		_daprClient = new DaprClientBuilder().build();
+		_daprClientBuilder = daprBuilder;
+		_grpcDaprClient = _daprClientBuilder.build();
 		this.GetEquipsAsync();
 
 		// 使用流式订阅设备命令消息
@@ -114,7 +105,7 @@ public class MqttProvider
 			@Override
 			public void run() {
 				// 是一个阻塞函数，需放入线程中执行
-				try (var client = new DaprClientBuilder().buildPreviewClient()) {
+				try (var client = _daprClientBuilder.buildPreviewClient()) {
 					var subscription = client.subscribeToEvents(
 							PUBSUB_NAME,
 							CMD_TOPIC_NAME,
@@ -124,8 +115,7 @@ public class MqttProvider
 								public Mono<Status> onEvent(CloudEvent<MqCmdMessage> event) {
 									var desMsgObject = event.getData();
 									var equipItem = StationItem.GetEquipItemFromEquipNo(desMsgObject.getEquipNo());
-									if (equipItem != null)
-									{
+									if (equipItem != null) {
 										equipItem.AddSetItem(new SetItem(desMsgObject.getEquipNo(),
 												desMsgObject.getMainInstruct(),
 												desMsgObject.getMinorInstruct(),
@@ -152,13 +142,14 @@ public class MqttProvider
     }
 
 	private final void GetEquipsAsync() {
-        try {
+        try (var daprClient = _daprClientBuilder.build()){
+
 			var cateObj = new HashMap<String, String>();
 			cateObj.put("Categary", "JAVA");
 			InvokeMethodRequest request = new InvokeMethodRequest(_gateWayId, "equip")
 					.setBody(cateObj)
 					.setHttpExtension(HttpExtension.POST);
-			var responses = _daprClient.invokeMethod(request, TypeRef.get(MqMessage[].class)).block();
+			var responses = daprClient.invokeMethod(request, TypeRef.get(MqMessage[].class)).block();
 			if (responses == null)
 			{
 				throw new NullPointerException();
@@ -181,62 +172,45 @@ public class MqttProvider
 				}
 			}
         } catch (DaprException exception) {
-			System.out.println("Error code: " + exception.getErrorCode());
-			System.out.println("Error message: " + exception.getMessage());
-			System.out.println("Reason: " + exception.getErrorDetails().get(
-					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
-					"reason",
-					TypeRef.STRING));
-			System.out.println("Error payload: " + new String(exception.getPayload()));
+			DataCenter.WriteLogFile("Error code: " + exception.getErrorCode() +
+					"Error message: " + exception.getMessage() +
+					"Reason: " + exception.getErrorDetails().get(DaprErrorDetails.ErrorDetailType.ERROR_INFO, "reason", TypeRef.STRING) +
+					"Error payload: " + new String(exception.getPayload()));
+		} catch (Exception e) {
+			throw new RuntimeException(e);
 		}
     }
 
 	public final void PublishYcRtValueAsync(MqRtValueMessage msg) {
 
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			String json = mapper.writeValueAsString(msg);
-
 			msg.setDataType(1);
-			_daprClient.publishEvent(
+			_grpcDaprClient.publishEvent(
 					PUBSUB_NAME,
 					TOPIC_NAME,
 					msg).block();
 
 		} catch (DaprException exception) {
-			System.out.println("Error code: " + exception.getErrorCode());
-			System.out.println("Error message: " + exception.getMessage());
-			System.out.println("Reason: " + exception.getErrorDetails().get(
-					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
-					"reason",
-					TypeRef.STRING));
-			System.out.println("Error payload: " + new String(exception.getPayload()));
-		} catch (JsonProcessingException e) {
-			DataCenter.WriteLogFile(String.format("PublishYcRtValueAsync Exception: %1$s", e));
+			DataCenter.WriteLogFile("Error code: " + exception.getErrorCode() +
+					"Error message: " + exception.getMessage() +
+					"Reason: " + exception.getErrorDetails().get(DaprErrorDetails.ErrorDetailType.ERROR_INFO, "reason", TypeRef.STRING) +
+					"Error payload: " + new String(exception.getPayload()));
 		}
 	}
 
 	public final void PublishYxRtValueAsync(MqRtValueMessage msg)
 	{
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			String json = mapper.writeValueAsString(msg);
-
 			msg.setDataType(2);
-			_daprClient.publishEvent(
+			_grpcDaprClient.publishEvent(
 					PUBSUB_NAME,
 					TOPIC_NAME,
 					msg).block();
 		}catch (DaprException exception) {
-			System.out.println("Error code: " + exception.getErrorCode());
-			System.out.println("Error message: " + exception.getMessage());
-			System.out.println("Reason: " + exception.getErrorDetails().get(
-					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
-					"reason",
-					TypeRef.STRING));
-			System.out.println("Error payload: " + new String(exception.getPayload()));
-		} catch (JsonProcessingException e) {
-			DataCenter.WriteLogFile(String.format("PublishYxRtValueAsync Exception: %1$s", e));
+			DataCenter.WriteLogFile("Error code: " + exception.getErrorCode() +
+					"Error message: " + exception.getMessage() +
+					"Reason: " + exception.getErrorDetails().get(DaprErrorDetails.ErrorDetailType.ERROR_INFO, "reason", TypeRef.STRING) +
+					"Error payload: " + new String(exception.getPayload()));
 		}
 	}
 
@@ -244,46 +218,30 @@ public class MqttProvider
 	public final void PublishRtStateAsync(MqRtStateMessage msg)
 	{
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			String json = mapper.writeValueAsString(msg);
-
-			_daprClient.publishEvent(
+			_grpcDaprClient.publishEvent(
 					PUBSUB_NAME,
 					TOPIC_NAME,
 					msg).block();
 		} catch (DaprException exception) {
-			System.out.println("Error code: " + exception.getErrorCode());
-			System.out.println("Error message: " + exception.getMessage());
-			System.out.println("Reason: " + exception.getErrorDetails().get(
-					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
-					"reason",
-					TypeRef.STRING));
-			System.out.println("Error payload: " + new String(exception.getPayload()));
-		}catch (JsonProcessingException e) {
-			DataCenter.WriteLogFile(String.format("PublishRtStateAsync Exception: %1$s", e));
+			DataCenter.WriteLogFile("Error code: " + exception.getErrorCode() +
+					"Error message: " + exception.getMessage() +
+					"Reason: " + exception.getErrorDetails().get(DaprErrorDetails.ErrorDetailType.ERROR_INFO, "reason", TypeRef.STRING) +
+					"Error payload: " + new String(exception.getPayload()));
 		}
 	}
 
 	public final void PublishEvtValueAsync(MqEvtMessage msg)
 	{
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			String json = mapper.writeValueAsString(msg);
-
-			_daprClient.publishEvent(
+			_grpcDaprClient.publishEvent(
 					PUBSUB_NAME,
 					TOPIC_NAME,
 					msg).block();
 		} catch (DaprException exception) {
-			System.out.println("Error code: " + exception.getErrorCode());
-			System.out.println("Error message: " + exception.getMessage());
-			System.out.println("Reason: " + exception.getErrorDetails().get(
-					DaprErrorDetails.ErrorDetailType.ERROR_INFO,
-					"reason",
-					TypeRef.STRING));
-			System.out.println("Error payload: " + new String(exception.getPayload()));
-		}catch (JsonProcessingException e) {
-			DataCenter.WriteLogFile(String.format("PublishRtStateAsync Exception: %1$s", e));
+			DataCenter.WriteLogFile("Error code: " + exception.getErrorCode() +
+					"Error message: " + exception.getMessage() +
+					"Reason: " + exception.getErrorDetails().get(DaprErrorDetails.ErrorDetailType.ERROR_INFO, "reason", TypeRef.STRING) +
+					"Error payload: " + new String(exception.getPayload()));
 		}
 	}
 

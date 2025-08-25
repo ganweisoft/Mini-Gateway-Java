@@ -1,11 +1,16 @@
-package gwdatacenter;
+package gwdatacenter.communication.serialPort;
+
+import gwdatacenter.DataCenter;
+import gwdatacenter.EquipItem;
+import gwdatacenter.General;
+import gwdatacenter.Interface.ICommunication;
+import gwdatacenter.StationItem;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.io.*;
 import java.util.stream.Stream;
 import javax.comm.*;
-import javax.comm.SerialPort;
 
 public class SZ_SerialPort implements ICommunication, Closeable
 {

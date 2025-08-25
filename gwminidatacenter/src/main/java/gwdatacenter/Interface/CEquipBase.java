@@ -1,10 +1,11 @@
-package gwdatacenter;
+package gwdatacenter.Interface;
 
+import gwdatacenter.*;
+import gwdatacenter.args.EquipEvent;
+import gwdatacenter.communication.SerialPort;
 import gwdatacenter.database.*;
 import java.util.*;
-import java.time.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /** 
  设备动态库的基类，派生于IEquip

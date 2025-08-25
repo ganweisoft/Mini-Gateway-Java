@@ -1,5 +1,8 @@
 package gwdatacenter;
 
+import gwdatacenter.Interface.PropertyChangedEventHandler;
+import gwdatacenter.args.PropertyChangedEventArgs;
+
 import javax.xml.stream.*;
 import javax.xml.transform.*;
 import java.nio.charset.StandardCharsets;

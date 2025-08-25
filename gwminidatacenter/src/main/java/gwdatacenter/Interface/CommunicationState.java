@@ -1,7 +1,4 @@
-package gwdatacenter;
-
-import java.util.*;
-import java.time.*;
+package gwdatacenter.Interface;
 
 public enum CommunicationState
 {

@@ -1,5 +1,11 @@
 package gwdatacenter;
 
+import gwdatacenter.Interface.CEquipBase;
+import gwdatacenter.Interface.CommunicationState;
+import gwdatacenter.args.ChangedEquip;
+import gwdatacenter.args.ChangedEquipState;
+import gwdatacenter.args.EquipState;
+import gwdatacenter.communication.SerialPort;
 import gwdatacenter.database.*;
 import gwdatacenter.mqservice.*;
 import gwdatacenter.mqservice.EquipEvent;

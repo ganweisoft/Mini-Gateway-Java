@@ -1,7 +1,9 @@
-package gwdatacenter;
+package gwdatacenter.Interface;
+
+import gwdatacenter.args.EquipEvent;
+import gwdatacenter.EquipItem;
 
 import java.util.*;
-import java.time.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public interface IEquip

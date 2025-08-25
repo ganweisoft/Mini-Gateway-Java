@@ -1,8 +1,5 @@
-package gwdatacenter;
+package gwdatacenter.args;
 
-import gwdatacenter.database.*;
-import gwdatacenter.mqservice.*;
-import java.util.*;
 import java.time.*;
 
 public class DelEquip

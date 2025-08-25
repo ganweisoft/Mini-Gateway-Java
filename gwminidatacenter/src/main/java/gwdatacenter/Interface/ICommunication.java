@@ -1,4 +1,6 @@
-package gwdatacenter;
+package gwdatacenter.Interface;
+
+import gwdatacenter.EquipItem;
 
 import java.util.*;
 

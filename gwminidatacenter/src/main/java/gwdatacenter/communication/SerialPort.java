@@ -1,4 +1,10 @@
-package gwdatacenter;
+package gwdatacenter.communication;
+
+import gwdatacenter.EquipItem;
+import gwdatacenter.communication.netPort.GWNetPort;
+import gwdatacenter.Interface.ICommunication;
+import gwdatacenter.StationItem;
+import gwdatacenter.communication.serialPort.SZ_SerialPort;
 
 import java.util.*;
 

@@ -1,4 +1,4 @@
-package gwdatacenter;
+package gwdatacenter.Interface;
 
 import gwdatacenter.database.*;
 

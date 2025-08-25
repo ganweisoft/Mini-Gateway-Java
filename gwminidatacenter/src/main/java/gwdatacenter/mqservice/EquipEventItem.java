@@ -1,7 +1,7 @@
 package gwdatacenter.mqservice;
 
-import gwdatacenter.*;
-import java.util.*;
+import gwdatacenter.args.MessageLevel;
+
 import java.time.*;
 
 public class EquipEventItem

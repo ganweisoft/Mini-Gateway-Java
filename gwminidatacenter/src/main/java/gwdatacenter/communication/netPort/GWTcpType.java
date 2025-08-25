@@ -1,6 +1,4 @@
-package gwdatacenter;
-
-import java.util.*;
+package gwdatacenter.communication.netPort;
 
 public enum GWTcpType
 {

@@ -1,4 +1,4 @@
-package gwdatacenter;
+package gwdatacenter.communication.netPort;
 
 import java.io.IOException;
 import java.net.InetAddress;

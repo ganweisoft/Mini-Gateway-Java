@@ -1,6 +1,4 @@
-package gwdatacenter;
-
-import gwdatacenter.database.*;
+package gwdatacenter.args;
 
 public enum MessageLevel
 {

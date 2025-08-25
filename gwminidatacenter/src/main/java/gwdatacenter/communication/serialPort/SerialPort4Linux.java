@@ -1,4 +1,10 @@
-package gwdatacenter;
+package gwdatacenter.communication.serialPort;
+
+import gwdatacenter.DataCenter;
+import gwdatacenter.EquipItem;
+import gwdatacenter.General;
+import gwdatacenter.Interface.ICommunication;
+import gwdatacenter.StationItem;
 
 import javax.comm.*;
 import java.nio.charset.StandardCharsets;

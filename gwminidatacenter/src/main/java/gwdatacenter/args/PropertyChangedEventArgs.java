@@ -1,4 +1,6 @@
-package gwdatacenter;
+package gwdatacenter.args;
+
+import gwdatacenter.Properties;
 
 public class PropertyChangedEventArgs extends sharpSystem.EventArgs
 {

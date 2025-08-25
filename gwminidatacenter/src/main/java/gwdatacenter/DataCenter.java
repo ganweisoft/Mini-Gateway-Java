@@ -104,7 +104,8 @@ public final class DataCenter
 		}
 		catch (RuntimeException | IOException e)
 		{
-			throw new RuntimeException(e);
+			e.printStackTrace();
+			System.out.println(e);
 		}
     }
 
